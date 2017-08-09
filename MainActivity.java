@@ -1,6 +1,13 @@
 package test.research.sjsu.bleamalagate;
 
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattServer;
+import android.bluetooth.BluetoothGattServerCallback;
+import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
@@ -21,7 +28,9 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,6 +38,8 @@ public class MainActivity extends AppCompatActivity {
     BluetoothAdapter mBluetoothAdapter;
     ParcelUuid mServiceUUID = ParcelUuid.fromString("00001830-0000-1000-8000-00805F9B34FB");
     ParcelUuid mServiceDataUUID = ParcelUuid.fromString("00009208-0000-1000-8000-00805F9B34FB");
+    UUID mServiceUUID2 = UUID.fromString("00001830-0000-1000-8000-00805F9B34FB");
+    UUID mCharUUID = UUID.fromString("00003000-0000-1000-8000-00805F9B34FB");
 
     //Scanner
     BluetoothLeScanner mBluetoothLeScanner;
@@ -41,6 +52,8 @@ public class MainActivity extends AppCompatActivity {
     Button stopScanningButton;
     TextView BeaconsReceived;
     long time = Long.MAX_VALUE;
+    BluetoothDevice mBluetoothDevice;
+    String address;
 
     //Advertiser
     BluetoothLeAdvertiser mBluetoothLeAdvertiser;
@@ -50,17 +63,46 @@ public class MainActivity extends AppCompatActivity {
     AdvertiseSettings.Builder mAdvertiseSettingBuilder = new AdvertiseSettings.Builder();
     Button BroadcastButton;
     Button StopBroadcastButton;
+
+    //Gatt
+    BluetoothGatt mBluetoothGatt;
+    BluetoothGattServer mBluetoothGattServer;
+    BluetoothGattService mBluetoothGattService = new BluetoothGattService(mServiceUUID2, 0);
+    BluetoothGattCharacteristic mBluetoothGattCharacteristic;
+    Button Connect;
+    Button Disconnect;
+    Button Read;
+    //BluetoothDevice ConnectDevice;
+    TextView ConnectionState;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         BLESetUp();
         PrepareAdvertiseSettings();
-        PrepareAdvertiseData("Moshi,Moshi");
+        PrepareAdvertiseData("World!");
         PrepareScanFilter();
         PrepareScanSetting();
         PreparePeripherals();
+        startServer();
     }
+    public void startServer(){
+        mBluetoothGattServer = mBluetoothManager.openGattServer(this, mBluetoothGattServerCallback);
+        mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_READ,BluetoothGattCharacteristic.PERMISSION_READ);
+        //mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
+        mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
+        mBluetoothGattServer.addService(mBluetoothGattService);
+    }
+    private BluetoothGattServerCallback mBluetoothGattServerCallback = new BluetoothGattServerCallback() {
+        @Override
+        public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
+            super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
+            char CharDataArr[] = new char[300];
+            Arrays.fill(CharDataArr, 'A');
+            String CharData = new String(CharDataArr);
+            mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
+        }
+    };
     public void BLESetUp(){
         mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
         mBluetoothAdapter = mBluetoothManager.getAdapter();
@@ -83,7 +125,6 @@ public class MainActivity extends AppCompatActivity {
         mAdvertiseSettings = mAdvertiseSettingBuilder.build();
     }
     public void PrepareScanFilter(){
-        mServiceUUID = ParcelUuid.fromString("00001830-0000-1000-8000-00805F9B34FB");
         mScanFilterBuilder.setServiceUuid(mServiceUUID);
         mScanFilter = mScanFilterBuilder.build();
         FilterList.add(mScanFilter);
@@ -124,7 +165,65 @@ public class MainActivity extends AppCompatActivity {
             }
         });
         stopScanningButton.setVisibility(View.INVISIBLE);
+
+        ConnectionState = (TextView) findViewById(R.id.ConnectionState);
+        Connect = (Button) findViewById(R.id.Connect);
+        Connect.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v){
+                EstablishConnection();
+                Connect.setVisibility(View.INVISIBLE);
+                Disconnect.setVisibility(View.VISIBLE);
+                Read.setVisibility(View.VISIBLE);
+            }
+        });
+
+        Disconnect = (Button) findViewById(R.id.Disconnect);
+        Disconnect.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v){
+                DisableConnection();
+                Connect.setVisibility(View.VISIBLE);
+                Disconnect.setVisibility(View.INVISIBLE);
+            }
+        });
+        Disconnect.setVisibility(View.INVISIBLE);
+
+        Read = (Button) findViewById(R.id.Read);
+        Read.setVisibility(View.INVISIBLE);
+        Read.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v){
+                mBluetoothGatt.setCharacteristicNotification(mBluetoothGattCharacteristic, true);
+                mBluetoothGatt.readCharacteristic(mBluetoothGattCharacteristic);
+            }
+        });
     }
+
+    private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
+        @Override
+        public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            super.onConnectionStateChange(gatt, status, newState);
+            if(newState == BluetoothGatt.STATE_CONNECTED){
+                ConnectionState.setText("Connected");
+                mBluetoothGatt.discoverServices();
+            }
+            else if(newState == BluetoothGatt.STATE_DISCONNECTED){
+                ConnectionState.setText("Disconnected");
+            }
+        }
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+            String Char = new String(characteristic.getValue());
+            ConnectionState.setText("Characteristic");
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+
+            }
+        }
+        @Override
+        public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                ConnectionState.setText("Serivce Discovered " + gatt.getService(mServiceUUID2).toString());
+            }
+        }
+    };
 
     public void startAdvertise(){
         mBluetoothLeAdvertiser.startAdvertising(mAdvertiseSettings,mAdvertiseData,mAdvertiseCallback);
@@ -140,7 +239,6 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onStartSuccess(AdvertiseSettings settingsInEffect) {
             super.onStartSuccess(settingsInEffect);
-
         }
     };
     public void startScanning() {
@@ -171,14 +269,27 @@ public class MainActivity extends AppCompatActivity {
         public void onScanResult(int callbackType, ScanResult result) {
             String name=result.getDevice().getName();
             time = Math.min(time, result.getTimestampNanos());
-            String data= new String(result.getScanRecord().getServiceData(mServiceDataUUID));
+            String data = "No Data";
+            mBluetoothDevice = result.getDevice();
+            if(result.getScanRecord().getServiceData(mServiceDataUUID)!=null) {
+                data = new String(result.getScanRecord().getServiceData(mServiceDataUUID));
+            }
             BeaconsReceived.setText(
                     "Device Name = " + name +
                     "\nrssi = " + result.getRssi() +
                     "\nAddress = " + result.getDevice().getAddress() +
                     "\nTime Stamp = " + result.getTimestampNanos() +
                     "\nTime Elapsed  = "+ (result.getTimestampNanos()-time)/1000000000 +
-                    "\nService Data = " + data );
+                    "\nService Data = " + data);
+            address = result.getDevice().getAddress();
         }
     };
+    private void EstablishConnection(){
+        final BluetoothDevice ConnectDevice = mBluetoothAdapter.getRemoteDevice(address);
+        ConnectionState.setText("Connecting to " + ConnectDevice.getName());
+        mBluetoothGatt = ConnectDevice.connectGatt(this, false, mGattCallback);
+    }
+    private void DisableConnection(){
+        mBluetoothGatt.disconnect();
+    }
 }
