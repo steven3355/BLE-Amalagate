@@ -34,6 +34,7 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
+    //API
     BluetoothManager mBluetoothManager;
     BluetoothAdapter mBluetoothAdapter;
     ParcelUuid mServiceUUID = ParcelUuid.fromString("00001830-0000-1000-8000-00805F9B34FB");
@@ -67,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
     //Gatt
     BluetoothGatt mBluetoothGatt;
     BluetoothGattServer mBluetoothGattServer;
-    BluetoothGattService mBluetoothGattService = new BluetoothGattService(mServiceUUID2, 0);
+    BluetoothGattService mBluetoothGattService;
     BluetoothGattCharacteristic mBluetoothGattCharacteristic;
     Button Connect;
     Button Disconnect;
@@ -88,8 +89,9 @@ public class MainActivity extends AppCompatActivity {
     }
     public void startServer(){
         mBluetoothGattServer = mBluetoothManager.openGattServer(this, mBluetoothGattServerCallback);
+        mBluetoothGattService = new BluetoothGattService(mServiceUUID2, 0);
         mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_READ,BluetoothGattCharacteristic.PERMISSION_READ);
-        //mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
+        mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
         mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
         mBluetoothGattServer.addService(mBluetoothGattService);
     }
@@ -97,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
-            char CharDataArr[] = new char[300];
+            char CharDataArr[] = new char[150];
             Arrays.fill(CharDataArr, 'A');
             String CharData = new String(CharDataArr);
             mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
@@ -191,8 +193,9 @@ public class MainActivity extends AppCompatActivity {
         Read.setVisibility(View.INVISIBLE);
         Read.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v){
-                mBluetoothGatt.setCharacteristicNotification(mBluetoothGattCharacteristic, true);
-                mBluetoothGatt.readCharacteristic(mBluetoothGattCharacteristic);
+                if(mBluetoothGatt.getService(mServiceUUID2)!=null);
+                    mBluetoothGatt.readCharacteristic(mBluetoothGatt.getService(mServiceUUID2).getCharacteristic(mCharUUID));
+                    ConnectionState.setText("Getting Characteristic");
             }
         });
     }
@@ -203,7 +206,9 @@ public class MainActivity extends AppCompatActivity {
             super.onConnectionStateChange(gatt, status, newState);
             if(newState == BluetoothGatt.STATE_CONNECTED){
                 ConnectionState.setText("Connected");
-                mBluetoothGatt.discoverServices();
+                if(mBluetoothGatt.discoverServices()==true){
+                    ConnectionState.setText("Discovering Services");
+                }
             }
             else if(newState == BluetoothGatt.STATE_DISCONNECTED){
                 ConnectionState.setText("Disconnected");
@@ -212,15 +217,18 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             String Char = new String(characteristic.getValue());
-            ConnectionState.setText("Characteristic");
+            ConnectionState.setText(Char);
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
             }
         }
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            mBluetoothGatt.getServices();
+            System.out.println(status);
+
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                ConnectionState.setText("Serivce Discovered " + gatt.getService(mServiceUUID2).toString());
+                ConnectionState.setText("Serivce Discovered ");
             }
         }
     };
