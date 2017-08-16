@@ -23,6 +23,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.ParcelUuid;
 import android.support.v7.app.AppCompatActivity;
+import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -66,6 +67,7 @@ public class MainActivity extends AppCompatActivity {
     Button StopBroadcastButton;
 
     //Gatt
+    Boolean Connected = false;
     BluetoothGatt mBluetoothGatt;
     BluetoothGattServer mBluetoothGattServer;
     BluetoothGattService mBluetoothGattService;
@@ -91,7 +93,7 @@ public class MainActivity extends AppCompatActivity {
         mBluetoothGattServer = mBluetoothManager.openGattServer(this, mBluetoothGattServerCallback);
         mBluetoothGattService = new BluetoothGattService(mServiceUUID2, 0);
         mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_READ,BluetoothGattCharacteristic.PERMISSION_READ);
-        mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
+        //mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
         mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
         mBluetoothGattServer.addService(mBluetoothGattService);
     }
@@ -99,9 +101,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
-            char CharDataArr[] = new char[150];
+            char CharDataArr[] = new char[500];
             Arrays.fill(CharDataArr, 'A');
-            String CharData = new String(CharDataArr);
+            String CharData = new String("Do not go gentle into that good night,\n" +
+                    "Old age should burn and rave at close of day;\n" +
+                    "Rage, rage against the dying of the light.\n" +
+                    "Though wise men at their end know dark is right,\n" +
+                    "Because their words had forked no lightning they\n" +
+                    "Do not go gentle into that good night.\n");
             mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
         }
     };
@@ -169,6 +176,7 @@ public class MainActivity extends AppCompatActivity {
         stopScanningButton.setVisibility(View.INVISIBLE);
 
         ConnectionState = (TextView) findViewById(R.id.ConnectionState);
+        ConnectionState.setMovementMethod(new ScrollingMovementMethod());
         Connect = (Button) findViewById(R.id.Connect);
         Connect.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v){
@@ -205,18 +213,22 @@ public class MainActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             super.onConnectionStateChange(gatt, status, newState);
             if(newState == BluetoothGatt.STATE_CONNECTED){
-                ConnectionState.setText("Connected");
-                if(mBluetoothGatt.discoverServices()==true){
-                    ConnectionState.setText("Discovering Services");
-                }
+                Connected = true;
+                mBluetoothGatt.discoverServices();
+                ConnectionState.setText("Connected and Discovering Services");
             }
             else if(newState == BluetoothGatt.STATE_DISCONNECTED){
+                Connected = false;
                 ConnectionState.setText("Disconnected");
+                Connect.setVisibility(View.VISIBLE);
+                Disconnect.setVisibility(View.INVISIBLE);
             }
+
         }
         @Override
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             String Char = new String(characteristic.getValue());
+            System.out.println(characteristic.getStringValue(0));
             ConnectionState.setText(Char);
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
@@ -224,11 +236,21 @@ public class MainActivity extends AppCompatActivity {
         }
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            mBluetoothGatt.getServices();
+            //mBluetoothGatt.getServices();
+            gatt.requestMtu(500);
             System.out.println(status);
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+
+                ConnectionState.setText("Serivce Discovered and Reading Characteristic");
+            }
+        }
+        @Override
+        public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            super.onMtuChanged(gatt, mtu, status);
 
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                ConnectionState.setText("Serivce Discovered ");
+                mBluetoothGatt.readCharacteristic(mBluetoothGatt.getService(mServiceUUID2).getCharacteristic(mCharUUID));
+                System.out.println("MTU is changed");
             }
         }
     };
@@ -290,6 +312,8 @@ public class MainActivity extends AppCompatActivity {
                     "\nTime Elapsed  = "+ (result.getTimestampNanos()-time)/1000000000 +
                     "\nService Data = " + data);
             address = result.getDevice().getAddress();
+            if(!Connected)
+                EstablishConnection();
         }
     };
     private void EstablishConnection(){
