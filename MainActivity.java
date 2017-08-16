@@ -30,7 +30,6 @@ import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -125,14 +124,7 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void onCharacteristicReadRequest(BluetoothDevice device, int requestId, int offset, BluetoothGattCharacteristic characteristic) {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
-            char CharDataArr[] = new char[500];
-            Arrays.fill(CharDataArr, 'A');
-
-            System.out.println(characteristic.getUuid().toString());
-            //mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
-
-            System.out.println(characteristic.getUuid().toString().equals("00003000-0000-1000-8000-00805f9b34fb"));
-                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , ReadResponse(characteristic.getUuid()));
+            mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , ReadResponse(characteristic.getUuid()));
 
         }
     };
