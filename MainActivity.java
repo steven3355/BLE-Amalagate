@@ -26,6 +26,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Switch;
 import android.widget.TextView;
 
 import java.util.ArrayList;
@@ -41,7 +42,8 @@ public class MainActivity extends AppCompatActivity {
     ParcelUuid mServiceUUID = ParcelUuid.fromString("00001830-0000-1000-8000-00805F9B34FB");
     ParcelUuid mServiceDataUUID = ParcelUuid.fromString("00009208-0000-1000-8000-00805F9B34FB");
     UUID mServiceUUID2 = UUID.fromString("00001830-0000-1000-8000-00805F9B34FB");
-    UUID mCharUUID = UUID.fromString("00003000-0000-1000-8000-00805F9B34FB");
+    UUID mCharUUID = UUID.fromString("00003000-0000-1000-8000-00805f9b34fb");
+    UUID mCharUUID2 = UUID.fromString("00003001-0000-1000-8000-00805f9b34fb");
 
     //Scanner
     BluetoothLeScanner mBluetoothLeScanner;
@@ -72,11 +74,14 @@ public class MainActivity extends AppCompatActivity {
     BluetoothGattServer mBluetoothGattServer;
     BluetoothGattService mBluetoothGattService;
     BluetoothGattCharacteristic mBluetoothGattCharacteristic;
+    BluetoothGattCharacteristic mBluetoothGattCharacteristic2;
     Button Connect;
     Button Disconnect;
     Button Read;
     //BluetoothDevice ConnectDevice;
     TextView ConnectionState;
+    Switch CharSwitch;
+    Boolean switched;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -93,9 +98,28 @@ public class MainActivity extends AppCompatActivity {
         mBluetoothGattServer = mBluetoothManager.openGattServer(this, mBluetoothGattServerCallback);
         mBluetoothGattService = new BluetoothGattService(mServiceUUID2, 0);
         mBluetoothGattCharacteristic = new BluetoothGattCharacteristic(mCharUUID,BluetoothGattCharacteristic.PROPERTY_READ,BluetoothGattCharacteristic.PERMISSION_READ);
-        //mBluetoothGattCharacteristic.setValue("I'MSOMECHARACTERISTIC".getBytes());
+        mBluetoothGattCharacteristic2 = new BluetoothGattCharacteristic(mCharUUID2,BluetoothGattCharacteristic.PROPERTY_READ,BluetoothGattCharacteristic.PERMISSION_READ);
         mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic);
+        mBluetoothGattService.addCharacteristic(mBluetoothGattCharacteristic2);
         mBluetoothGattServer.addService(mBluetoothGattService);
+    }
+    private byte[] ReadResponse(UUID uuid){
+        String id = new String(uuid.toString().substring(4,8));
+        System.out.println(id);
+        String CharData = new String("Do not go gentle into that good night,\n" +
+                "Old age should burn and rave at close of day;\n" +
+                "Rage, rage against the dying of the light.\n" +
+                "Though wise men at their end know dark is right,\n" +
+                "Because their words had forked no lightning they\n" +
+                "Do not go gentle into that good night.\n");
+        String CharData2 = new String("We wanted flying cars, instead we got 140 characters.");
+        switch(id){
+            case "3000":
+                return CharData.getBytes();
+            case "3001":
+                return CharData2.getBytes();
+        }
+        return null;
     }
     private BluetoothGattServerCallback mBluetoothGattServerCallback = new BluetoothGattServerCallback() {
         @Override
@@ -103,13 +127,13 @@ public class MainActivity extends AppCompatActivity {
             super.onCharacteristicReadRequest(device, requestId, offset, characteristic);
             char CharDataArr[] = new char[500];
             Arrays.fill(CharDataArr, 'A');
-            String CharData = new String("Do not go gentle into that good night,\n" +
-                    "Old age should burn and rave at close of day;\n" +
-                    "Rage, rage against the dying of the light.\n" +
-                    "Though wise men at their end know dark is right,\n" +
-                    "Because their words had forked no lightning they\n" +
-                    "Do not go gentle into that good night.\n");
-            mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
+
+            System.out.println(characteristic.getUuid().toString());
+            //mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , CharData.getBytes());
+
+            System.out.println(characteristic.getUuid().toString().equals("00003000-0000-1000-8000-00805f9b34fb"));
+                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0 , ReadResponse(characteristic.getUuid()));
+
         }
     };
     public void BLESetUp(){
@@ -177,6 +201,7 @@ public class MainActivity extends AppCompatActivity {
 
         ConnectionState = (TextView) findViewById(R.id.ConnectionState);
         ConnectionState.setMovementMethod(new ScrollingMovementMethod());
+        /*
         Connect = (Button) findViewById(R.id.Connect);
         Connect.setOnClickListener(new View.OnClickListener() {
             public void onClick(View v){
@@ -205,7 +230,10 @@ public class MainActivity extends AppCompatActivity {
                     mBluetoothGatt.readCharacteristic(mBluetoothGatt.getService(mServiceUUID2).getCharacteristic(mCharUUID));
                     ConnectionState.setText("Getting Characteristic");
             }
-        });
+        });*/
+        //Switch CharSwitch = (Switch) findViewById(R.id.CharSwitch);
+        //switched = CharSwitch.isChecked();
+
     }
 
     private BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
@@ -229,7 +257,11 @@ public class MainActivity extends AppCompatActivity {
         public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
             String Char = new String(characteristic.getValue());
             System.out.println(characteristic.getStringValue(0));
-            ConnectionState.setText(Char);
+            if(characteristic.getUuid().equals(mCharUUID)){
+                ConnectionState.setText(Char);
+            }
+            else
+                ConnectionState.setText(Char);
             if (status == BluetoothGatt.GATT_SUCCESS) {
 
             }
@@ -239,17 +271,15 @@ public class MainActivity extends AppCompatActivity {
             //mBluetoothGatt.getServices();
             gatt.requestMtu(500);
             System.out.println(status);
+            ConnectionState.setText("Serivce Discovered and Reading Characteristic");
             if (status == BluetoothGatt.GATT_SUCCESS) {
-
-                ConnectionState.setText("Serivce Discovered and Reading Characteristic");
             }
         }
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             super.onMtuChanged(gatt, mtu, status);
-
             if (status == BluetoothGatt.GATT_SUCCESS) {
-                mBluetoothGatt.readCharacteristic(mBluetoothGatt.getService(mServiceUUID2).getCharacteristic(mCharUUID));
+                mBluetoothGatt.readCharacteristic(mBluetoothGatt.getService(mServiceUUID2).getCharacteristic(mCharUUID2));
                 System.out.println("MTU is changed");
             }
         }
